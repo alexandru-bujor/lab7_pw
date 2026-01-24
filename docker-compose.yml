@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: megamobile-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: megamobile
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - megamobile-network
+
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: megamobile-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - DB_USER=root
+      - DB_PASS=root
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_NAME=megamobile
+      - PORT=8000
+      - GIN_MODE=release
+
+      # Database Configuration (Remote MySQL)
+      # - DB_USER=app_user
+      # - DB_PASS=ChaithuGhiera5koo5eejoxam3
+      # - DB_HOST=167.86.114.109
+      # - DB_PORT=3306
+      # - DB_NAME=app_db
+    depends_on:
+      - mysql
+    networks:
+      - megamobile-network
+
+networks:
+  megamobile-network:
+    driver: bridge
+
+volumes:
+  mysql_data:
