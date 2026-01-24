@@ -1,19 +1,6 @@
 version: '3.8'
 
 services:
-  mysql:
-    image: mysql:8.0
-    container_name: megamobile-mysql
-    restart: unless-stopped
-    environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: megamobile
-    volumes:
-      - mysql_data:/var/lib/mysql
-    networks:
-      - megamobile-network
-
-
   api:
     build:
       context: .
