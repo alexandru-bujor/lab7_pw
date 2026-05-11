@@ -1,7 +1,6 @@
 package user
 
 import (
-	"log"
 	"net/http"
 	"strconv"
 
@@ -36,25 +35,20 @@ func LoginHandler(c *gin.Context) {
 	c.JSON(200, gin.H{"user": user.ToResponse()})
 }
 
-// List returns all users
 func (h *Handler) List(c *gin.Context) {
 	users, err := h.svc.List()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	log.Printf("📊 Fetched %d users", len(users))
-	
-	// Convert to response format
 	userResponses := make([]UserResponse, len(users))
 	for i, user := range users {
 		userResponses[i] = user.ToResponse()
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{"users": userResponses})
 }
 
-// GetByID returns a specific user
 func (h *Handler) GetByID(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -71,7 +65,6 @@ func (h *Handler) GetByID(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"user": user.ToResponse()})
 }
 
-// Create creates a new user
 func (h *Handler) Create(c *gin.Context) {
 	var input CreateUserInput
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -85,11 +78,9 @@ func (h *Handler) Create(c *gin.Context) {
 		return
 	}
 
-	log.Printf("👤 Created user #%d: %s %s (%s)", user.ID, user.FirstName, user.LastName, user.Email)
 	c.JSON(http.StatusCreated, gin.H{"user": user.ToResponse()})
 }
 
-// Update updates an existing user
 func (h *Handler) Update(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -109,11 +100,9 @@ func (h *Handler) Update(c *gin.Context) {
 		return
 	}
 
-	log.Printf("✏️ Updated user #%d: %s %s", id, user.FirstName, user.LastName)
 	c.JSON(http.StatusOK, gin.H{"user": user.ToResponse()})
 }
 
-// Delete deletes a user
 func (h *Handler) Delete(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -126,6 +115,5 @@ func (h *Handler) Delete(c *gin.Context) {
 		return
 	}
 
-	log.Printf("🗑️ Deleted user #%d", id)
 	c.JSON(http.StatusOK, gin.H{"message": "user deleted successfully"})
 }

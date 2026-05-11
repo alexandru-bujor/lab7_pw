@@ -1,11 +1,12 @@
 package lombard
 
 import (
-	"log"
+	"fmt"
 	"net/http"
 	"strconv"
 
 	"MegaMobileBack/internal/telegram"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -17,12 +18,16 @@ func NewHandler() *Handler {
 	return &Handler{svc: NewService()}
 }
 
-// Create creates a new lombard request
 func (h *Handler) Create(c *gin.Context) {
 	var input CreateLombardRequestInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
+	}
+
+	fmt.Printf("📥 Received Lombard Request: %+v\n", input)
+	for i, p := range input.Products {
+		fmt.Printf("📦 Product %d: %+v | ImageURL: %s\n", i, p, p.ImageURL)
 	}
 
 	request, err := h.svc.Create(input)
@@ -31,9 +36,6 @@ func (h *Handler) Create(c *gin.Context) {
 		return
 	}
 
-	log.Printf("📝 Created lombard request #%d from %s", request.ID, request.CustomerName)
-	
-	// Send Telegram notification
 	itemsCount := len(request.Products)
 	telegram.SendLombardRequestNotification(
 		request.ID,
@@ -42,22 +44,19 @@ func (h *Handler) Create(c *gin.Context) {
 		request.RequestType,
 		itemsCount,
 	)
-	
+
 	c.JSON(http.StatusCreated, gin.H{"request": request})
 }
 
-// List returns all lombard requests
 func (h *Handler) List(c *gin.Context) {
 	requests, err := h.svc.List()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	log.Printf("📊 Fetched %d lombard requests", len(requests))
 	c.JSON(http.StatusOK, gin.H{"requests": requests})
 }
 
-// GetByID returns a specific lombard request
 func (h *Handler) GetByID(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -74,7 +73,6 @@ func (h *Handler) GetByID(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"request": request})
 }
 
-// UpdateStatus updates the status of a lombard request
 func (h *Handler) UpdateStatus(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -94,11 +92,9 @@ func (h *Handler) UpdateStatus(c *gin.Context) {
 		return
 	}
 
-	log.Printf("✅ Updated lombard request #%d status to %s", id, body.Status)
 	c.JSON(http.StatusOK, gin.H{"request": request})
 }
 
-// Delete deletes a lombard request
 func (h *Handler) Delete(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -111,7 +107,5 @@ func (h *Handler) Delete(c *gin.Context) {
 		return
 	}
 
-	log.Printf("🗑️ Deleted lombard request #%d", id)
 	c.JSON(http.StatusOK, gin.H{"message": "lombard request deleted successfully"})
 }
-

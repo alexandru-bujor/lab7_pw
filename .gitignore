@@ -93,6 +93,7 @@ uploads/
 
 # Air (live reload for Go)
 tmp/
+build-errors.log
 
 # Delve debugger
 __debug_bin

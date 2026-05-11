@@ -7,14 +7,16 @@ func RegisterRoutes(api *gin.RouterGroup) {
 	inv := api.Group("/inventory")
 	{
 		inv.GET("", h.List)
+		inv.GET("/order/:orderId", h.ListByOrderID)
 		inv.POST("", h.Create)
 		inv.PUT("/:id", h.Update)
 		inv.DELETE("/:id", h.Delete)
 		inv.POST("/:id/assign-client", h.AssignClient)
 		inv.POST("/:id/mark-sold", h.MarkSold)
-		inv.POST("/sync", h.SyncToInventory)		// Sections management
+		inv.POST("/sync", h.SyncToInventory)
 		inv.GET("/sections", h.ListSections)
 		inv.POST("/sections", h.CreateSection)
 		inv.PUT("/sections/:id", h.UpdateSection)
-		inv.DELETE("/sections/:id", h.DeleteSection)	}
+		inv.DELETE("/sections/:id", h.DeleteSection)
+	}
 }

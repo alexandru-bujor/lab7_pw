@@ -12,20 +12,17 @@ import (
 
 var Bot *tgbotapi.BotAPI
 
-// Topic IDs for the MegaMobile group
 const (
 	ChatID       int64 = -1003415263352
-	TopicService int   = 6  // service topic
-	TopicLombard int   = 4  // Lombard topic
-	TopicOrders  int   = 8  // comenzi topic
-	TopicStats   int   = 10 // statistica topic
+	TopicService int   = 6
+	TopicLombard int   = 4
+	TopicOrders  int   = 8
+	TopicStats   int   = 10
 )
 
-// StartBot initializes and starts the Telegram bot
 func StartBot() error {
 	token := os.Getenv("TELEGRAM_BOT_TOKEN")
 	if token == "" {
-		// Use the provided token as default
 		token = "8531734711:AAGlQ41cvou0sIWKrPIUde8CJG4ttrxHhbI"
 	}
 
@@ -37,15 +34,10 @@ func StartBot() error {
 	Bot = bot
 	bot.Debug = false
 
-	log.Printf("🤖 Telegram bot authorized on account %s", bot.Self.UserName)
-
-	// Set up update configuration
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
-
 	updates := bot.GetUpdatesChan(u)
 
-	// Handle incoming updates
 	go func() {
 		for update := range updates {
 			if update.Message != nil {
@@ -54,11 +46,9 @@ func StartBot() error {
 		}
 	}()
 
-	log.Println("✅ Telegram bot is running and listening for messages")
 	return nil
 }
 
-// handleMessage processes incoming messages
 func handleMessage(message *tgbotapi.Message) {
 	chatID := message.Chat.ID
 	text := message.Text
@@ -66,39 +56,23 @@ func handleMessage(message *tgbotapi.Message) {
 	chatTitle := message.Chat.Title
 	messageID := message.MessageID
 
-	// Log message details
-	log.Printf("📨 Received message from chat: %s (ID: %d), chat type: %s, message ID: %d, text: %s",
-		chatTitle, chatID, chatType, messageID, text)
-
-	// Check if this is a reply (which can help identify topics)
-	if message.ReplyToMessage != nil {
-		log.Printf("   ↳ This is a reply to message ID: %d", message.ReplyToMessage.MessageID)
-	}
-
-	// Handle /start command
 	if text == "/start" {
 		handleStartCommand(message, chatID, chatTitle, chatType, messageID)
 	} else if text == "statistica" || text == "/statistica" {
-		// Handle statistics command in statistica topic
 		if message.ReplyToMessage != nil && message.ReplyToMessage.MessageID == TopicStats {
 			handleStatisticsCommand(message, chatID)
 		} else if chatID == ChatID {
-			// Check if we're in the stats topic by checking if it's a reply to the stats topic
 			handleStatisticsCommand(message, chatID)
 		}
 	}
 }
 
-// handleStartCommand handles the /start command
 func handleStartCommand(message *tgbotapi.Message, chatID int64, chatTitle, chatType string, messageID int) {
 	var responseText string
 	var topicID int
 
-	// Check if this is in a topic (reply to a topic starter message)
 	if message.ReplyToMessage != nil {
-		// The Reply To Message ID is the topic ID
 		topicID = message.ReplyToMessage.MessageID
-
 		responseText = fmt.Sprintf("📊 Chat Information:\n\n"+
 			"Chat Name: %s\n"+
 			"Chat ID: %d\n"+
@@ -108,7 +82,6 @@ func handleStartCommand(message *tgbotapi.Message, chatID int64, chatTitle, chat
 			"Current Message ID: %d",
 			chatTitle, chatID, chatType, topicID, messageID)
 
-		// Try to get more info about the topic starter message
 		if message.ReplyToMessage.Text != "" {
 			responseText += fmt.Sprintf("\n\nTopic Starter Message:\n%s",
 				truncateText(message.ReplyToMessage.Text, 100))
@@ -116,10 +89,7 @@ func handleStartCommand(message *tgbotapi.Message, chatID int64, chatTitle, chat
 			responseText += fmt.Sprintf("\n\nTopic Starter Caption:\n%s",
 				truncateText(message.ReplyToMessage.Caption, 100))
 		}
-
-		log.Printf("📌 Topic identified: Chat=%d, TopicID=%d", chatID, topicID)
 	} else {
-		// Not in a topic
 		responseText = fmt.Sprintf("📊 Chat Information:\n\n"+
 			"Chat Name: %s\n"+
 			"Chat ID: %d\n"+
@@ -131,24 +101,15 @@ func handleStartCommand(message *tgbotapi.Message, chatID int64, chatTitle, chat
 	}
 
 	msg := tgbotapi.NewMessage(chatID, responseText)
-
-	// If this was a reply, reply in the same thread
 	if message.ReplyToMessage != nil {
 		msg.ReplyToMessageID = messageID
 	}
 
 	if _, err := Bot.Send(msg); err != nil {
-		log.Printf("❌ Error sending message: %v", err)
-	} else {
-		if topicID != 0 {
-			log.Printf("✅ Sent topic info: chat=%d, topic=%d", chatID, topicID)
-		} else {
-			log.Printf("✅ Sent chat info: chat=%d", chatID)
-		}
+		log.Printf("Error sending message: %v", err)
 	}
 }
 
-// handleStatisticsCommand handles the statistica command
 func handleStatisticsCommand(message *tgbotapi.Message, chatID int64) {
 	if Bot == nil {
 		return
@@ -157,20 +118,15 @@ func handleStatisticsCommand(message *tgbotapi.Message, chatID int64) {
 	statsText := getDailyStatistics()
 
 	msg := tgbotapi.NewMessage(chatID, statsText)
-
-	// Reply in the same topic if it's a reply
 	if message.ReplyToMessage != nil {
 		msg.ReplyToMessageID = message.MessageID
 	}
 
 	if _, err := Bot.Send(msg); err != nil {
-		log.Printf("❌ Error sending statistics: %v", err)
-	} else {
-		log.Printf("✅ Sent statistics to chat: %d", chatID)
+		log.Printf("Error sending statistics: %v", err)
 	}
 }
 
-// getDailyStatistics fetches and formats daily statistics
 func getDailyStatistics() string {
 	statsSvc := &stats.Service{}
 	today, yesterday, err := statsSvc.GetDailyStats()
@@ -197,7 +153,6 @@ func getDailyStatistics() string {
 	return message
 }
 
-// SendServiceRequestNotification sends a notification about a new service request
 func SendServiceRequestNotification(requestID int, customerName, customerPhone, deviceInfo, problemDesc string) {
 	if Bot == nil {
 		return
@@ -209,20 +164,16 @@ func SendServiceRequestNotification(requestID int, customerName, customerPhone, 
 		"Telefon: %s\n"+
 		"Dispozitiv: %s\n"+
 		"Problemă: %s",
-		requestID, customerName, customerPhone, deviceInfo, truncateText(problemDesc, 100))
+		requestID, customerName, customerPhone, deviceInfo, truncateText(problemDesc, 50))
 
 	msg := tgbotapi.NewMessage(ChatID, message)
-	// Reply to the service topic starter message to post in the correct topic
 	msg.ReplyToMessageID = TopicService
 
 	if _, err := Bot.Send(msg); err != nil {
-		log.Printf("❌ Error sending service request notification: %v", err)
-	} else {
-		log.Printf("✅ Sent service request notification: #%d to topic %d", requestID, TopicService)
+		log.Printf("Error sending service request notification: %v", err)
 	}
 }
 
-// SendLombardRequestNotification sends a notification about a new lombard request
 func SendLombardRequestNotification(requestID int, customerName, customerPhone, requestType string, itemsCount int) {
 	if Bot == nil {
 		return
@@ -242,17 +193,13 @@ func SendLombardRequestNotification(requestID int, customerName, customerPhone, 
 		requestID, customerName, customerPhone, requestTypeText, itemsCount)
 
 	msg := tgbotapi.NewMessage(ChatID, message)
-	// Reply to the lombard topic starter message to post in the correct topic
 	msg.ReplyToMessageID = TopicLombard
 
 	if _, err := Bot.Send(msg); err != nil {
-		log.Printf("❌ Error sending lombard request notification: %v", err)
-	} else {
-		log.Printf("✅ Sent lombard request notification: #%d to topic %d", requestID, TopicLombard)
+		log.Printf("Error sending lombard request notification: %v", err)
 	}
 }
 
-// SendOrderNotification sends a notification about a new order
 func SendOrderNotification(orderID int, customerName, customerPhone, productTitle string, totalAmount float64) {
 	if Bot == nil {
 		return
@@ -264,20 +211,16 @@ func SendOrderNotification(orderID int, customerName, customerPhone, productTitl
 		"Telefon: %s\n"+
 		"Produs: %s\n"+
 		"Total: %.2f MDL",
-		orderID, customerName, customerPhone, truncateText(productTitle, 100), totalAmount)
+		orderID, customerName, customerPhone, truncateText(productTitle, 50), totalAmount)
 
 	msg := tgbotapi.NewMessage(ChatID, message)
-	// Reply to the orders topic starter message to post in the correct topic
 	msg.ReplyToMessageID = TopicOrders
 
 	if _, err := Bot.Send(msg); err != nil {
-		log.Printf("❌ Error sending order notification: %v", err)
-	} else {
-		log.Printf("✅ Sent order notification: #%d to topic %d", orderID, TopicOrders)
+		log.Printf("Error sending order notification: %v", err)
 	}
 }
 
-// truncateText truncates text to a maximum length
 func truncateText(text string, maxLen int) string {
 	if len(text) <= maxLen {
 		return text

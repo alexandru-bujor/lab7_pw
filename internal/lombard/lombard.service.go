@@ -3,6 +3,7 @@ package lombard
 import (
 	"MegaMobileBack/pkg/db"
 	"errors"
+	"fmt"
 
 	"gorm.io/gorm"
 )
@@ -15,7 +16,6 @@ func NewService() *Service {
 	return &Service{DB: db.DB}
 }
 
-// Create creates a new lombard request
 func (s *Service) Create(input CreateLombardRequestInput) (*LombardRequest, error) {
 	request := &LombardRequest{
 		CustomerName:  input.CustomerName,
@@ -26,17 +26,19 @@ func (s *Service) Create(input CreateLombardRequestInput) (*LombardRequest, erro
 	}
 
 	if request.RequestType == "" {
-		request.RequestType = "electronics" // default
+		request.RequestType = "electronics"
 	}
 
 	if err := s.DB.Create(request).Error; err != nil {
+		fmt.Printf("❌ Error saving Lombard Request: %v\n", err)
 		return nil, err
 	}
+
+	fmt.Printf("✅ Saved Lombard Request ID %d with %d products\n", request.ID, len(request.Products))
 
 	return request, nil
 }
 
-// List returns all lombard requests
 func (s *Service) List() ([]LombardRequest, error) {
 	var requests []LombardRequest
 	if err := s.DB.Order("created_at DESC").Find(&requests).Error; err != nil {
@@ -45,7 +47,6 @@ func (s *Service) List() ([]LombardRequest, error) {
 	return requests, nil
 }
 
-// GetByID returns a specific lombard request
 func (s *Service) GetByID(id int) (*LombardRequest, error) {
 	var request LombardRequest
 	if err := s.DB.First(&request, id).Error; err != nil {
@@ -54,19 +55,16 @@ func (s *Service) GetByID(id int) (*LombardRequest, error) {
 	return &request, nil
 }
 
-// UpdateStatus updates the status of a lombard request
 func (s *Service) UpdateStatus(id int, status string) (*LombardRequest, error) {
 	var request LombardRequest
 	if err := s.DB.First(&request, id).Error; err != nil {
 		return nil, errors.New("lombard request not found")
 	}
 
-	// Validate status
 	validStatuses := map[string]bool{
-		"new":  true,
-		"old":  true,
-		"seen": true,
-		// Keep old statuses for backward compatibility
+		"new":      true,
+		"old":      true,
+		"seen":     true,
 		"pending":  true,
 		"approved": true,
 		"accepted": true,
@@ -85,8 +83,6 @@ func (s *Service) UpdateStatus(id int, status string) (*LombardRequest, error) {
 	return &request, nil
 }
 
-// Delete deletes a lombard request
 func (s *Service) Delete(id int) error {
 	return s.DB.Delete(&LombardRequest{}, id).Error
 }
-

@@ -6,6 +6,7 @@ import (
 	"MegaMobileBack/internal/product"
 	"MegaMobileBack/pkg/db"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -22,13 +23,25 @@ func (s *Service) Create(order *Order) error {
 	return s.DB.Create(order).Error
 }
 
-func (s *Service) List(status string) ([]Order, error) {
+func (s *Service) List(status string, startDate string, endDate string) ([]Order, error) {
 	var orders []Order
-	q := s.DB.Model(&Order{})
+	// Select all fields from orders and use a join to get the manager name
+	q := s.DB.Table("orders").
+		Select("orders.*, CONCAT_WS(' ', users.first_name, users.last_name) as manager_name, products.brand_name as product_brand_name, products.model as product_model").
+		Joins("LEFT JOIN users ON users.id = orders.manager_id").
+		Joins("LEFT JOIN products ON products.id = orders.product_id")
+
 	if status != "" {
-		q = q.Where("status = ?", status)
+		q = q.Where("orders.status = ?", status)
 	}
-	if err := q.Order("created_at DESC").Find(&orders).Error; err != nil {
+	if startDate != "" {
+		q = q.Where("DATE(orders.created_at) >= ?", startDate)
+	}
+	if endDate != "" {
+		q = q.Where("DATE(orders.created_at) <= ?", endDate)
+	}
+
+	if err := q.Order("orders.created_at DESC").Find(&orders).Error; err != nil {
 		return nil, err
 	}
 	return orders, nil
@@ -50,40 +63,46 @@ func (s *Service) GetByClientID(clientID int) ([]Order, error) {
 	return orders, nil
 }
 
-func (s *Service) UpdateStatus(id int, status string) (*Order, error) {
+func (s *Service) UpdateStatus(id int, status string, managerID *int) (*Order, error) {
 	var order Order
 	if err := s.DB.First(&order, id).Error; err != nil {
 		return nil, err
 	}
-	
+
 	order.Status = status
+	if managerID != nil {
+		order.ManagerID = managerID
+	}
 	if err := s.DB.Save(&order).Error; err != nil {
 		return nil, err
 	}
-	
+
+	// Fetch the manager name for the response
+	if order.ManagerID != nil {
+		var managerName string
+		s.DB.Table("users").Select("CONCAT_WS(' ', first_name, last_name)").Where("id = ?", *order.ManagerID).Scan(&managerName)
+		order.ManagerName = managerName
+	}
+
 	return &order, nil
 }
 
-// CreateFromWebsite creates an order from website/client submission
 func (s *Service) CreateFromWebsite(input CreateOrderInput) (*Order, error) {
-	// Basic email format validation (less strict than Go's email validator)
 	if input.ClientEmail == "" {
 		return nil, errors.New("client email is required")
 	}
 	if !strings.Contains(input.ClientEmail, "@") {
 		return nil, errors.New("invalid email format")
 	}
-	
-	// Get or create client
+
 	clientSvc := client.NewService()
 	clientSvc.DB = s.DB
-	
+
 	clientRecord, err := clientSvc.GetOrCreateClientByEmail(input.ClientEmail, input.ClientName, input.ClientPhone)
 	if err != nil {
 		return nil, err
 	}
-	
-	// Create order
+
 	order := &Order{
 		ClientID:       &clientRecord.ID,
 		ClientName:     input.ClientName,
@@ -99,73 +118,89 @@ func (s *Service) CreateFromWebsite(input CreateOrderInput) (*Order, error) {
 		Status:         "pending",
 		OrderSource:    input.OrderSource,
 		AccountingType: input.AccountingType,
+		ManagerID:      input.ManagerID,
+		CreatedAt:      time.Now(),
+		UpdatedAt:      time.Now(),
 	}
-	
+
+	if input.CreatedAt != nil && *input.CreatedAt != "" {
+		if t, err := time.Parse("2006-01-02", *input.CreatedAt); err == nil {
+			// Maintain original time of day if it's already there? No, manual creates usually mean it was on that day.
+			// Set it to 12:00 UTC or just keep as is (which will be 00:00:00).
+			order.CreatedAt = t
+		}
+	}
+
 	if order.OrderSource == "" {
 		order.OrderSource = "website"
 	}
-	
+
+	// If manual sale, make it visible in secondary panel by default
+	if order.OrderSource == "manual" {
+		order.IsVisibleInSecondary = true
+	}
+
 	if order.AccountingType == "" {
 		order.AccountingType = "on_book"
 	}
-	
+
 	if err := s.DB.Create(order).Error; err != nil {
 		return nil, err
 	}
-	
+
+	// Fetch the manager name if manager exists
+	if order.ManagerID != nil {
+		var managerName string
+		s.DB.Table("users").Select("CONCAT_WS(' ', first_name, last_name)").Where("id = ?", *order.ManagerID).Scan(&managerName)
+		order.ManagerName = managerName
+	}
+
 	return order, nil
 }
 
-// MarkAsSold marks an order as sold and links it to an inventory item
-func (s *Service) MarkAsSold(orderID int, inventoryItemID int, sellPrice *float64) (*Order, error) {
+func (s *Service) MarkAsSold(orderID int, inventoryItemID int, sellPrice *float64, managerID *int) (*Order, error) {
 	var order Order
 	if err := s.DB.First(&order, orderID).Error; err != nil {
 		return nil, err
 	}
-	
-	// Get inventory item
+
 	inventorySvc := inventory.NewService()
 	inventorySvc.DB = s.DB
-	
+
 	var item inventory.InventoryItem
 	if err := s.DB.First(&item, inventoryItemID).Error; err != nil {
 		return nil, errors.New("inventory item not found")
 	}
-	
-	// Verify inventory item matches order
+
 	if item.ProductID != order.ProductID {
 		return nil, errors.New("inventory item does not match order product")
 	}
-	
-	// Check if already sold
+
 	if item.Status == "sold" {
 		return nil, errors.New("inventory item already sold")
 	}
-	
-	// Get product details for buy price
+
 	var prod product.Product
-	if err := s.DB.Preload("Variants").First(&prod, item.ProductID).Error; err != nil {
+	if err := s.DB.First(&prod, item.ProductID).Error; err != nil {
 		return nil, err
 	}
-	
+
 	now := time.Now()
-	
-	// Start transaction
+
 	err := s.DB.Transaction(func(tx *gorm.DB) error {
-		// Update inventory item as sold
 		item.Status = "sold"
 		item.SoldAt = &now
 		if order.ClientID != nil {
 			item.ClientID = order.ClientID
 		}
+		item.OrderID = &order.ID
 		if sellPrice != nil {
 			item.SellPrice = *sellPrice
 		}
 		if err := tx.Save(&item).Error; err != nil {
-			return err
+			return fmt.Errorf("failed to save inventory item: %w", err)
 		}
-		
-		// Update order
+
 		order.InventoryItemID = &item.ID
 		order.BuyPrice = item.BuyPrice
 		if sellPrice != nil {
@@ -176,12 +211,14 @@ func (s *Service) MarkAsSold(orderID int, inventoryItemID int, sellPrice *float6
 		order.Profit = order.SellPrice - order.BuyPrice
 		order.Status = "completed"
 		order.SoldAt = &now
-		
-		if err := tx.Save(&order).Error; err != nil {
-			return err
+		if managerID != nil {
+			order.ManagerID = managerID
 		}
-		
-		// Update client stats
+
+		if err := tx.Save(&order).Error; err != nil {
+			return fmt.Errorf("failed to save order: %w", err)
+		}
+
 		if order.ClientID != nil {
 			var clientRecord client.Client
 			if err := tx.First(&clientRecord, *order.ClientID).Error; err == nil {
@@ -189,40 +226,32 @@ func (s *Service) MarkAsSold(orderID int, inventoryItemID int, sellPrice *float6
 				clientRecord.TotalSpent += order.SellPrice
 				clientRecord.LastOrderDate = &now
 				if err := tx.Save(&clientRecord).Error; err != nil {
-					return err
+					return fmt.Errorf("failed to update client record: %w", err)
 				}
 			}
 		}
-		
-		// Decrement stock
-		hasVariant := item.VariantColor != "" || item.VariantStorage != "" || item.VariantRAM != ""
-		if hasVariant {
-			var variant product.ProductVariant
-			err := tx.Where("product_id = ? AND color = ? AND storage = ? AND ram = ?",
-				item.ProductID, item.VariantColor, item.VariantStorage, item.VariantRAM).
-				First(&variant).Error
-			if err == nil && variant.Stock > 0 {
-				variant.Stock--
-				if err := tx.Save(&variant).Error; err != nil {
-					return err
-				}
-			}
-		} else {
-			if prod.Stock > 0 {
-				prod.Stock--
-				if err := tx.Model(&product.Product{}).Where("id = ?", prod.ID).Update("stock", prod.Stock).Error; err != nil {
-					return err
-				}
+
+		if prod.Stock > 0 {
+			prod.Stock--
+			if err := tx.Model(&product.Product{}).Where("id = ?", prod.ID).Update("stock", prod.Stock).Error; err != nil {
+				return fmt.Errorf("failed to decrement product stock: %w", err)
 			}
 		}
-		
+
 		return nil
 	})
-	
+
 	if err != nil {
 		return nil, err
 	}
-	
+
+	// Fetch the manager name for the response
+	if order.ManagerID != nil {
+		var managerName string
+		s.DB.Table("users").Select("CONCAT_WS(' ', first_name, last_name)").Where("id = ?", *order.ManagerID).Scan(&managerName)
+		order.ManagerName = managerName
+	}
+
 	return &order, nil
 }
 
@@ -230,10 +259,15 @@ func (s *Service) Delete(id int) error {
 	return s.DB.Delete(&Order{}, id).Error
 }
 
-// GetSecondaryOrders returns only orders visible in secondary panel
 func (s *Service) GetSecondaryOrders() ([]Order, error) {
 	var orders []Order
-	if err := s.DB.Where("is_visible_in_secondary = ?", true).Order("created_at DESC").Find(&orders).Error; err != nil {
+	q := s.DB.Table("orders").
+		Select("orders.*, CONCAT_WS(' ', users.first_name, users.last_name) as manager_name, products.brand_name as product_brand_name, products.model as product_model").
+		Joins("LEFT JOIN users ON users.id = orders.manager_id").
+		Joins("LEFT JOIN products ON products.id = orders.product_id").
+		Where("orders.is_visible_in_secondary = ?", true)
+
+	if err := q.Order("orders.created_at DESC").Find(&orders).Error; err != nil {
 		return nil, err
 	}
 	return orders, nil

@@ -1,22 +1,28 @@
-version: '3.8'
-
 services:
   api:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     container_name: megamobile-api
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "8080:8080"
+    volumes:
+      # Mount source code for hot reload
+      - .:/app
+      # Exclude build artifacts
+      - /app/tmp
+      - /app/build
+      - /app/.git
+    env_file:
+      - .env
     environment:
-      - DB_USER=root
-      - DB_PASS=root
-      - DB_HOST=mysql
-      - DB_PORT=3306
-      - DB_NAME=megamobile
-      - PORT=8000
-      - GIN_MODE=release
+      # Override DB_HOST for Docker to access host machine's XAMPP
+      - DB_HOST=host.docker.internal
+      # Override PORT to match container's exposed port
+      - PORT=8080
+      # Override GIN_MODE for development
+      - GIN_MODE=debug
 
       # Database Configuration (Remote MySQL)
       # - DB_USER=app_user
@@ -24,14 +30,7 @@ services:
       # - DB_HOST=167.86.114.109
       # - DB_PORT=3306
       # - DB_NAME=app_db
-    depends_on:
-      - mysql
-    networks:
-      - megamobile-network
 
 networks:
   megamobile-network:
     driver: bridge
-
-volumes:
-  mysql_data:

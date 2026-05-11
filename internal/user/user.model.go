@@ -2,8 +2,8 @@ package user
 
 import (
 	"encoding/json"
-	"time"
 	"gorm.io/datatypes"
+	"time"
 )
 
 type User struct {
@@ -11,14 +11,13 @@ type User struct {
 	FirstName   string         `gorm:"column=first_name" json:"first_name"`
 	LastName    string         `gorm:"column=last_name" json:"last_name"`
 	Email       string         `gorm:"column=email;unique" json:"email"`
-	Password    string         `gorm:"column=password" json:"-"` // store HASH here, never sent to frontend
+	Password    string         `gorm:"column=password" json:"-"`
 	Role        string         `gorm:"column=role" json:"role"`
-	Permissions datatypes.JSON `gorm:"column=permissions;type:json" json:"-"` // Internal storage, use PermissionsArray for JSON
+	Permissions datatypes.JSON `gorm:"column=permissions;type:json" json:"-"`
 	CreatedAt   time.Time      `gorm:"column=created_at" json:"created_at"`
 	UpdatedAt   time.Time      `gorm:"column=updated_at" json:"updated_at"`
 }
 
-// PermissionsArray is used for JSON serialization
 type UserResponse struct {
 	ID          int       `json:"id"`
 	FirstName   string    `json:"first_name"`
@@ -30,7 +29,6 @@ type UserResponse struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
-// ToResponse converts User to UserResponse for JSON serialization
 func (u *User) ToResponse() UserResponse {
 	var permissions []string
 	if len(u.Permissions) > 0 {
@@ -52,7 +50,6 @@ func (User) TableName() string {
 	return "users"
 }
 
-// CreateUserInput for creating new users
 type CreateUserInput struct {
 	FirstName   string   `json:"first_name" binding:"required"`
 	LastName    string   `json:"last_name" binding:"required"`
@@ -62,7 +59,6 @@ type CreateUserInput struct {
 	Permissions []string `json:"permissions"`
 }
 
-// UpdateUserInput for updating users
 type UpdateUserInput struct {
 	FirstName   string   `json:"first_name"`
 	LastName    string   `json:"last_name"`

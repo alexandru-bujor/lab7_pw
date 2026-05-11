@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"MegaMobileBack/internal/telegram"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -18,7 +19,6 @@ func NewHandler() *Handler {
 	return &Handler{svc: NewService()}
 }
 
-// Create creates a new service request
 func (h *Handler) Create(c *gin.Context) {
 	var input CreateServiceRequestInput
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -28,13 +28,10 @@ func (h *Handler) Create(c *gin.Context) {
 
 	request, err := h.svc.Create(input)
 	if err != nil {
+		log.Printf("Failed to create service request: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-
-	log.Printf("📝 Created service request #%d from %s", request.ID, request.CustomerName)
-	
-	// Send Telegram notification
 	deviceInfo := ""
 	if request.DeviceMake != "" && request.DeviceModel != "" {
 		deviceInfo = fmt.Sprintf("%s %s", request.DeviceMake, request.DeviceModel)
@@ -45,7 +42,7 @@ func (h *Handler) Create(c *gin.Context) {
 	} else {
 		deviceInfo = "N/A"
 	}
-	
+
 	telegram.SendServiceRequestNotification(
 		request.ID,
 		request.CustomerName,
@@ -53,22 +50,19 @@ func (h *Handler) Create(c *gin.Context) {
 		deviceInfo,
 		request.ProblemDescription,
 	)
-	
+
 	c.JSON(http.StatusCreated, gin.H{"request": request})
 }
 
-// List returns all service requests
 func (h *Handler) List(c *gin.Context) {
 	requests, err := h.svc.List()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	log.Printf("📊 Fetched %d service requests", len(requests))
 	c.JSON(http.StatusOK, gin.H{"requests": requests})
 }
 
-// GetByID returns a specific service request
 func (h *Handler) GetByID(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -85,7 +79,6 @@ func (h *Handler) GetByID(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"request": request})
 }
 
-// UpdateStatus updates the status of a service request
 func (h *Handler) UpdateStatus(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -105,11 +98,9 @@ func (h *Handler) UpdateStatus(c *gin.Context) {
 		return
 	}
 
-	log.Printf("✅ Updated service request #%d status to %s", id, body.Status)
 	c.JSON(http.StatusOK, gin.H{"request": request})
 }
 
-// Delete deletes a service request
 func (h *Handler) Delete(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -122,7 +113,5 @@ func (h *Handler) Delete(c *gin.Context) {
 		return
 	}
 
-	log.Printf("🗑️ Deleted service request #%d", id)
 	c.JSON(http.StatusOK, gin.H{"message": "service request deleted successfully"})
 }
-

@@ -17,7 +17,6 @@ func NewHandler() *Handler {
 	}
 }
 
-// GetAllClients returns all clients
 func (h *Handler) GetAllClients(c *gin.Context) {
 	clients, err := h.service.GetAllClients()
 	if err != nil {
@@ -28,7 +27,6 @@ func (h *Handler) GetAllClients(c *gin.Context) {
 	c.JSON(http.StatusOK, clients)
 }
 
-// GetClientByID returns a single client by ID
 func (h *Handler) GetClientByID(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -45,7 +43,6 @@ func (h *Handler) GetClientByID(c *gin.Context) {
 	c.JSON(http.StatusOK, client)
 }
 
-// CreateClient creates a new client
 func (h *Handler) CreateClient(c *gin.Context) {
 	var input CreateClientInput
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -62,7 +59,6 @@ func (h *Handler) CreateClient(c *gin.Context) {
 	c.JSON(http.StatusCreated, client)
 }
 
-// UpdateClient updates an existing client
 func (h *Handler) UpdateClient(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -85,7 +81,6 @@ func (h *Handler) UpdateClient(c *gin.Context) {
 	c.JSON(http.StatusOK, client)
 }
 
-// DeleteClient deletes a client
 func (h *Handler) DeleteClient(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -101,7 +96,6 @@ func (h *Handler) DeleteClient(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "client deleted successfully"})
 }
 
-// RecordOrder records a new order for a client
 func (h *Handler) RecordOrder(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -130,7 +124,6 @@ func (h *Handler) RecordOrder(c *gin.Context) {
 	c.JSON(http.StatusCreated, order)
 }
 
-// GetOrCreateClientByEmail gets or creates a client by email (for auto-registration)
 func (h *Handler) GetOrCreateClientByEmail(c *gin.Context) {
 	var input struct {
 		Email string `json:"email" binding:"required,email"`

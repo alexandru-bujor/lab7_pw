@@ -4,7 +4,7 @@ import "MegaMobileBack/pkg/db"
 
 func GetAllCategories() ([]Category, error) {
 	var categories []Category
-	err := db.DB.Find(&categories).Error
+	err := db.DB.Order("parent_id ASC, id ASC").Find(&categories).Error
 	return categories, err
 }
 

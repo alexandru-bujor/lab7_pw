@@ -7,13 +7,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// GetSecondaryProducts returns only products visible in secondary panel
 func GetSecondaryProducts(c *gin.Context) {
 	var products []Product
 	err := db.DB.
-		Where("is_visible_in_secondary = ?", true).
 		Preload("Images").
-		Preload("Variants").
 		Find(&products).Error
 
 	if err != nil {

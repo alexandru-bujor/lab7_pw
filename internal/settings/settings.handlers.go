@@ -6,7 +6,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// VerifySecondaryPasswordHandler verifies the secondary panel password
 func VerifySecondaryPasswordHandler(c *gin.Context) {
 	var body struct {
 		Password string `json:"password" binding:"required"`
@@ -31,7 +30,6 @@ func VerifySecondaryPasswordHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"valid": true})
 }
 
-// ChangeSecondaryPasswordHandler changes the secondary panel password
 func ChangeSecondaryPasswordHandler(c *gin.Context) {
 	var body struct {
 		CurrentPassword string `json:"current_password" binding:"required"`
@@ -43,7 +41,6 @@ func ChangeSecondaryPasswordHandler(c *gin.Context) {
 		return
 	}
 
-	// Verify current password
 	valid, err := VerifySecondaryPanelPassword(body.CurrentPassword)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to verify current password"})
@@ -55,7 +52,6 @@ func ChangeSecondaryPasswordHandler(c *gin.Context) {
 		return
 	}
 
-	// Set new password
 	if err := SetSecondaryPanelPassword(body.NewPassword); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update password"})
 		return

@@ -11,7 +11,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// POST /upload/product-image
 func UploadProductImageHandler(c *gin.Context) {
 	file, err := c.FormFile("image")
 	if err != nil {
@@ -19,7 +18,6 @@ func UploadProductImageHandler(c *gin.Context) {
 		return
 	}
 
-	// Validate file extension
 	ext := strings.ToLower(filepath.Ext(file.Filename))
 	allowedExts := map[string]bool{
 		".jpg":  true,
@@ -33,20 +31,30 @@ func UploadProductImageHandler(c *gin.Context) {
 		return
 	}
 
-	// Generate unique filename
 	timestamp := time.Now().Unix()
 	uniqueID := uuid.New().String()[:8]
 	filename := fmt.Sprintf("%d_%s%s", timestamp, uniqueID, ext)
-
-	// Save to uploads/products/
 	savePath := filepath.Join("uploads", "products", filename)
+
 	if err := c.SaveUploadedFile(file, savePath); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save image", "details": err.Error()})
 		return
 	}
 
-	// Return URL path (frontend will prepend backend base URL)
 	imageURL := fmt.Sprintf("/uploads/products/%s", filename)
+	if gin.Mode() == gin.DebugMode {
+		scheme := "http"
+		if c.GetHeader("X-Forwarded-Proto") == "https" {
+			scheme = "https"
+		}
+		host := c.GetHeader("Host")
+		if host == "" {
+			host = c.Request.Host
+		}
+		if host != "" {
+			imageURL = fmt.Sprintf("%s://%s%s", scheme, host, imageURL)
+		}
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Image uploaded successfully",
